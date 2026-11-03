@@ -1,0 +1,53 @@
+{
+  "name": "xiaoxiaoyunclient",
+  "productName": "校校云客户端",
+  "version": "1.0.0",
+  "description": "校校云客户端 —— 基于 Electron 的原网页封装桌面端，带标题栏、刷新与账号自动登录。",
+  "license": "MIT",
+  "main": "src/main/main.js",
+  "author": "yueEnjoylife123456721",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yueEnjoylife123456721/xiaoxiaoyunclient.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:linux": "electron-builder --linux",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "^45.2.1",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "com.xiaoxiaoyun.client",
+    "productName": "校校云客户端",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Network"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg"
+      ],
+      "category": "public.app-category.productivity"
+    }
+  }
+}

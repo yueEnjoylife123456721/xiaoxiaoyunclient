@@ -1,0 +1,223 @@
+'use strict'
+
+const api = window.xiaoxiaoyun
+
+const els = {
+  titlebar: document.getElementById('titlebar'),
+  pageTitle: document.getElementById('pageTitle'),
+  stage: document.getElementById('stage'),
+  emptyState: document.getElementById('emptyState'),
+  btnRefresh: document.getElementById('btnRefresh'),
+  btnAutoLogin: document.getElementById('btnAutoLogin'),
+  btnSettings: document.getElementById('btnSettings'),
+  btnMinimize: document.getElementById('btnMinimize'),
+  btnMaximize: document.getElementById('btnMaximize'),
+  btnClose: document.getElementById('btnClose'),
+  btnOpenSettings: document.getElementById('btnOpenSettings'),
+  drawer: document.getElementById('drawer'),
+  drawerMask: document.getElementById('drawerMask'),
+  btnCloseSettings: document.getElementById('btnCloseSettings'),
+  inputSiteUrl: document.getElementById('inputSiteUrl'),
+  btnSaveUrl: document.getElementById('btnSaveUrl'),
+  toggleAutoLogin: document.getElementById('toggleAutoLogin'),
+  accountList: document.getElementById('accountList'),
+  emptyAccounts: document.getElementById('emptyAccounts'),
+  inputUsername: document.getElementById('inputUsername'),
+  inputPassword: document.getElementById('inputPassword'),
+  btnAddAccount: document.getElementById('btnAddAccount'),
+  btnLoginNow: document.getElementById('btnLoginNow'),
+  formError: document.getElementById('formError'),
+  toast: document.getElementById('toast')
+}
+
+let state = null
+let toastTimer = null
+
+function showToast (message, isError = false) {
+  els.toast.textContent = message
+  els.toast.classList.toggle('error', isError)
+  els.toast.hidden = false
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    els.toast.hidden = true
+  }, 2600)
+}
+
+function render (next) {
+  state = next
+  const page = state.page || {}
+
+  els.pageTitle.textContent = page.title || '校校云'
+  els.emptyState.hidden = Boolean(state.siteUrl)
+  els.btnRefresh.classList.toggle('is-busy', Boolean(page.loading))
+
+  if (document.activeElement !== els.inputSiteUrl) {
+    els.inputSiteUrl.value = state.siteUrl || ''
+  }
+  els.toggleAutoLogin.checked = Boolean(state.autoLogin)
+
+  els.accountList.innerHTML = ''
+  const accounts = state.accounts || []
+  els.emptyAccounts.hidden = accounts.length > 0
+
+  for (const account of accounts) {
+    const active = account.id === state.activeAccountId
+    const li = document.createElement('li')
+    li.className = `account-item${active ? ' is-active' : ''}`
+
+    const nameWrap = document.createElement('div')
+    nameWrap.className = 'account-name'
+    nameWrap.textContent = account.username
+    if (active) {
+      const badge = document.createElement('span')
+      badge.className = 'account-badge'
+      badge.textContent = '当前'
+      nameWrap.appendChild(badge)
+    }
+    if (account.encrypted === false) {
+      const badge = document.createElement('span')
+      badge.className = 'account-badge'
+      badge.textContent = '未加密'
+      nameWrap.appendChild(badge)
+    }
+
+    const ops = document.createElement('div')
+    ops.className = 'account-ops'
+
+    if (!active) {
+      const useBtn = document.createElement('button')
+      useBtn.textContent = '设为当前'
+      useBtn.addEventListener('click', () => run(() => api.setActiveAccount(account.id)))
+      ops.appendChild(useBtn)
+    }
+
+    const delBtn = document.createElement('button')
+    delBtn.className = 'danger'
+    delBtn.textContent = '删除'
+    delBtn.addEventListener('click', () => {
+      if (!confirm(`删除账号「${account.username}」？`)) return
+      run(() => api.removeAccount(account.id))
+    })
+    ops.appendChild(delBtn)
+
+    li.appendChild(nameWrap)
+    li.appendChild(ops)
+    els.accountList.appendChild(li)
+  }
+}
+
+async function run (action, successMessage) {
+  try {
+    const next = await action()
+    if (next) render(next)
+    if (successMessage) showToast(successMessage)
+  } catch (error) {
+    showToast(error?.message || String(error), true)
+  }
+}
+
+function openSettings () {
+  els.drawer.hidden = false
+  els.drawerMask.hidden = false
+  els.formError.hidden = true
+  if (!els.inputSiteUrl.value && state?.siteUrl) {
+    els.inputSiteUrl.value = state.siteUrl
+  }
+  els.inputSiteUrl.focus()
+}
+
+function closeSettings () {
+  els.drawer.hidden = true
+  els.drawerMask.hidden = true
+}
+
+function bindEvents () {
+  els.btnOpenSettings.addEventListener('click', openSettings)
+  els.btnSettings.addEventListener('click', () => {
+    if (els.drawer.hidden) openSettings()
+    else closeSettings()
+  })
+  els.btnCloseSettings.addEventListener('click', closeSettings)
+  els.drawerMask.addEventListener('click', closeSettings)
+
+  els.btnRefresh.addEventListener('click', async () => {
+    const ok = await api.reload()
+    if (!ok) showToast('请先在设置里填写站点地址', true)
+  })
+
+  els.btnAutoLogin.addEventListener('click', async () => {
+    await api.loginNow()
+    showToast('已执行一次自动登录')
+  })
+
+  els.btnSaveUrl.addEventListener('click', () => {
+    run(
+      () => api.saveSettings({ siteUrl: els.inputSiteUrl.value }),
+      '站点地址已保存'
+    ).then(() => {
+      if (state?.siteUrl) closeSettings()
+    })
+  })
+
+  els.inputSiteUrl.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') els.btnSaveUrl.click()
+  })
+
+  els.toggleAutoLogin.addEventListener('change', () => {
+    run(() => api.saveSettings({ autoLogin: els.toggleAutoLogin.checked }))
+  })
+
+  els.btnAddAccount.addEventListener('click', async () => {
+    const username = els.inputUsername.value.trim()
+    const password = els.inputPassword.value
+    if (!username || !password) {
+      els.formError.textContent = '账号和密码都不能为空'
+      els.formError.hidden = false
+      return
+    }
+    els.formError.hidden = true
+    try {
+      const next = await api.addAccount({ username, password })
+      render(next)
+      els.inputUsername.value = ''
+      els.inputPassword.value = ''
+      showToast('账号已添加')
+    } catch (error) {
+      els.formError.textContent = error?.message || String(error)
+      els.formError.hidden = false
+    }
+  })
+
+  els.btnLoginNow.addEventListener('click', async () => {
+    await api.loginNow()
+    showToast('已执行一次自动登录')
+  })
+
+  els.btnMinimize.addEventListener('click', () => api.minimize())
+  els.btnMaximize.addEventListener('click', () => api.toggleMaximize())
+  els.btnClose.addEventListener('click', () => api.close())
+
+  els.titlebar.addEventListener('dblclick', (event) => {
+    if (event.target.closest('.actions')) return
+    api.toggleMaximize()
+  })
+
+  window.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !els.drawer.hidden) closeSettings()
+  })
+}
+
+async function bootstrap () {
+  bindEvents()
+  render(await api.getState())
+  api.onState((next) => render(next))
+  api.onLoginResult((result) => {
+    if (result?.ok) showToast('自动登录已提交')
+    else if (result?.reason === 'no-login-form') showToast('当前页面没有登录表单', true)
+    else if (result?.reason) showToast(`自动登录失败：${result.reason}`, true)
+  })
+
+  if (!state.siteUrl) openSettings()
+}
+
+bootstrap()
