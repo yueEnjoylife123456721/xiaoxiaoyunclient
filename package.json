@@ -12,10 +12,10 @@
   },
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder",
-    "dist:linux": "electron-builder --linux",
-    "dist:win": "electron-builder --win",
-    "dist:mac": "electron-builder --mac"
+    "dist": "electron-builder --publish never",
+    "dist:linux": "electron-builder --linux --publish never",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never"
   },
   "devDependencies": {
     "electron": "^45.2.1",
@@ -24,8 +24,10 @@
   "build": {
     "appId": "com.xiaoxiaoyun.client",
     "productName": "校校云客户端",
+    "artifactName": "xiaoxiaoyunclient-v${version}-${arch}.${ext}",
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
     },
     "files": [
       "src/**/*",
@@ -36,17 +38,37 @@
         "AppImage",
         "deb"
       ],
+      "icon": "build/icon.png",
       "category": "Network"
     },
     "win": {
       "target": [
-        "nsis"
-      ]
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "校校云客户端",
+      "installerLanguages": [
+        "zh_CN"
+      ],
+      "language": "2052"
     },
     "mac": {
       "target": [
         "dmg"
       ],
+      "icon": "build/icon.png",
       "category": "public.app-category.productivity"
     }
   }

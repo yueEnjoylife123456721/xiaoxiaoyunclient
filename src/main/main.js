@@ -104,6 +104,7 @@ function createSiteView () {
   layout()
 
   const contents = siteView.webContents
+  registerRefreshShortcut(contents)
 
   // 去掉 Electron 标识，避免原站点把它当成受限客户端
   contents.setUserAgent(
@@ -170,6 +171,7 @@ function createMainWindow () {
     show: false,
     backgroundColor: '#101418',
     title: '校校云',
+    icon: path.join(__dirname, '..', 'assets', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, '..', 'preload', 'shell-protocol.js'),
       contextIsolation: true,
@@ -179,6 +181,7 @@ function createMainWindow () {
   })
 
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'))
+  registerRefreshShortcut(mainWindow.webContents)
 
   mainWindow.once('ready-to-show', () => {
     if (windowMaximized) mainWindow.maximize()
@@ -218,6 +221,21 @@ function saveWindowState () {
   store.saveWindowState({
     bounds: maximized ? undefined : mainWindow.getBounds(),
     maximized
+  })
+}
+
+app.setAppUserModelId('com.xiaoxiaoyun.client')
+
+/** F5 / Ctrl+R 刷新：壳页面和原网页都生效 */
+function registerRefreshShortcut (contents) {
+  contents.on('before-input-event', (event, input) => {
+    const isRefresh = input.type === 'keyDown' && (
+      input.key === 'F5' || ((input.control || input.meta) && input.key.toLowerCase() === 'r')
+    )
+    if (!isRefresh || !siteView) return
+    event.preventDefault()
+    lastAutoLoginUrl = null
+    siteView.webContents.reload()
   })
 }
 

@@ -25,11 +25,27 @@ npm start          # 启动客户端
 
 ```bash
 npm run dist:linux   # AppImage + deb
-npm run dist:win     # NSIS 安装包
+npm run dist:win     # NSIS 安装包（.exe）
 npm run dist:mac     # dmg
 ```
 
 产物输出到 `dist/`。
+
+### 给学校的 Windows 电脑用
+
+两种方式，都不需要装开发环境：
+
+1. **直接拿安装包**：`npm run dist:win` 生成的 `dist/xiaoxiaoyunclient-v1.0.0-x64.exe`，双击安装即可（默认装到当前用户，可改安装目录）。
+2. **CI 打包**：仓库已带 `.github/workflows/build.yml`，推 `v*` 标签或在 Actions 页面手动触发，会在真实的 `windows-latest` 上打包并把 `.exe` 作为 artifact 上传（14 天有效）。
+
+在 Linux 上交叉打 Windows 包依赖 `wine`（本机已装）；没有 wine 的机器用方案 2 更省事。
+
+### 快捷键
+
+| 快捷键 | 作用 |
+|---|---|
+| `F5` / `Ctrl+R` | 刷新原网页 |
+| 双击标题栏 | 最大化 / 还原 |
 
 ## 目录结构
 
