@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('xiaoxiaoyun', {
   setActiveAccount: (id) => ipcRenderer.invoke('account:setActive', id),
   reload: () => ipcRenderer.invoke('view:reload'),
   loginNow: () => ipcRenderer.invoke('view:login-now'),
+  setOverlay: (open) => ipcRenderer.invoke('view:overlay', open),
   minimize: () => ipcRenderer.invoke('window:minimize'),
   toggleMaximize: () => ipcRenderer.invoke('window:toggle-maximize'),
   close: () => ipcRenderer.invoke('window:close'),

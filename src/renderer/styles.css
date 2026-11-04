@@ -91,6 +91,7 @@ input:focus-visible {
 .actions {
   display: flex;
   align-items: center;
+  flex: none;
   height: 100%;
   -webkit-app-region: no-drag;
   app-region: no-drag;
@@ -507,33 +508,39 @@ input:focus-visible {
   border-top: 1px dashed var(--border);
 }
 
-/* ------------------------------ Toast ------------------------------ */
+/* --------------------------- 标题栏状态提示 --------------------------- */
+/* 提示放在标题栏里，因为原网页视图会盖住页面区域，放在下面会被完全挡住看不见 */
 
-.toast {
-  position: fixed;
-  left: 50%;
-  bottom: 26px;
-  transform: translateX(-50%);
-  padding: 9px 16px;
+.title-status {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 46%;
+  margin-left: auto;
+  margin-right: 10px;
+  padding: 4px 11px;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: rgba(23, 29, 36, 0.96);
+  border-radius: 999px;
+  background: var(--accent-soft);
   color: var(--text);
-  font-size: 12px;
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
-  z-index: 30;
-  animation: toast-in 0.2s ease;
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  animation: status-in 0.18s ease;
 }
 
-.toast.error {
+.title-status.error {
   border-color: rgba(255, 95, 109, 0.5);
+  background: rgba(255, 95, 109, 0.14);
   color: #ffb3b8;
 }
 
-@keyframes toast-in {
+@keyframes status-in {
   from {
     opacity: 0;
-    transform: translate(-50%, 8px);
+    transform: translateY(-4px);
   }
 }
 

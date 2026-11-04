@@ -47,6 +47,9 @@ const store = new Store({ portable })
 let mainWindow = null
 let siteView = null
 let lastAutoLoginUrl = null
+// 抽屉 / 提示层是否打开。WebContentsView 永远盖在窗口自身的网页上层，
+// 所以打开抽屉时必须先把原网页视图藏起来，否则设置界面看不见也点不到。
+let overlayOpen = false
 
 const pageState = {
   title: '校校云',
@@ -79,19 +82,23 @@ function normalizeUrl (input) {
   return `https://${value}`
 }
 
+/** 是否该显示原网页视图：配了地址，并且没有抽屉之类的浮层挡在上面 */
+function syncViewVisibility () {
+  if (!siteView) return
+  const hasUrl = Boolean(normalizeUrl(store.getState().siteUrl))
+  siteView.setVisible(hasUrl && !overlayOpen)
+}
+
 function applySiteUrl () {
   if (!siteView) return
   const url = normalizeUrl(store.getState().siteUrl)
   pageState.url = url
-  if (!url) {
-    siteView.setVisible(false)
-    pushState()
-    return
-  }
-  siteView.setVisible(true)
-  const current = siteView.webContents.getURL()
-  if (current !== url) {
-    siteView.webContents.loadURL(url).catch(() => {})
+  syncViewVisibility()
+  if (url) {
+    const current = siteView.webContents.getURL()
+    if (current !== url) {
+      siteView.webContents.loadURL(url).catch(() => {})
+    }
   }
   pushState()
 }
@@ -359,6 +366,12 @@ ipcMain.handle('view:login-now', async () => {
   lastAutoLoginUrl = null
   await runAutoLogin()
   return true
+})
+
+ipcMain.handle('view:overlay', (_event, open) => {
+  overlayOpen = Boolean(open)
+  syncViewVisibility()
+  return overlayOpen
 })
 
 ipcMain.handle('window:minimize', () => {

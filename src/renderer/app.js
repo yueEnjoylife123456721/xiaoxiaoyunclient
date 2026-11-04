@@ -135,6 +135,8 @@ function openSettings () {
   els.drawer.hidden = false
   els.drawerMask.hidden = false
   els.formError.hidden = true
+  // 原网页视图层级更高，打开抽屉时必须让主进程把它藏起来，否则设置界面会被盖住
+  api.setOverlay(true)
   if (!els.inputSiteUrl.value && state?.siteUrl) {
     els.inputSiteUrl.value = state.siteUrl
   }
@@ -144,6 +146,7 @@ function openSettings () {
 function closeSettings () {
   els.drawer.hidden = true
   els.drawerMask.hidden = true
+  api.setOverlay(false)
 }
 
 function bindEvents () {
@@ -165,13 +168,19 @@ function bindEvents () {
     showToast('已执行一次自动登录')
   })
 
-  els.btnSaveUrl.addEventListener('click', () => {
-    run(
-      () => api.saveSettings({ siteUrl: els.inputSiteUrl.value }),
-      '站点地址已保存'
-    ).then(() => {
-      if (state?.siteUrl) closeSettings()
-    })
+  els.btnSaveUrl.addEventListener('click', async () => {
+    if (!els.inputSiteUrl.value.trim()) {
+      showToast('请先填写站点地址', true)
+      els.inputSiteUrl.focus()
+      return
+    }
+    try {
+      render(await api.saveSettings({ siteUrl: els.inputSiteUrl.value }))
+      showToast('站点地址已保存')
+      closeSettings()
+    } catch (error) {
+      showToast(error?.message || String(error), true)
+    }
   })
 
   els.inputSiteUrl.addEventListener('keydown', (event) => {
