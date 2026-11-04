@@ -14,14 +14,50 @@ const DEFAULT_STATE = {
   activeAccountId: null
 }
 
+const CIPHER_SAFE = 'safe-storage'
+const CIPHER_AES = 'aes-gcm-local'
+
+/** 便携模式用的本地密钥上下文：只要程序与 data 目录一起搬，密码就能继续解开 */
+function deriveLocalKey () {
+  return crypto.scryptSync('xiaoxiaoyunclient:v1:portable', 'xxy-portable-salt-v1', 32)
+}
+
+function aesEncrypt (plain) {
+  const iv = crypto.randomBytes(12)
+  const cipher = crypto.createCipheriv('aes-256-gcm', deriveLocalKey(), iv)
+  const body = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()])
+  return Buffer.concat([iv, cipher.getAuthTag(), body]).toString('base64')
+}
+
+function aesDecrypt (payload) {
+  const raw = Buffer.from(payload, 'base64')
+  const iv = raw.subarray(0, 12)
+  const tag = raw.subarray(12, 28)
+  const body = raw.subarray(28)
+  const decipher = crypto.createDecipheriv('aes-256-gcm', deriveLocalKey(), iv)
+  decipher.setAuthTag(tag)
+  return Buffer.concat([decipher.update(body), decipher.final()]).toString('utf8')
+}
+
 /**
  * 本地配置与账号存储。
- * 密码统一走系统级加密（Electron safeStorage），落盘时不保存明文。
+ *
+ * 加密策略：
+ * - 便携模式（学校冰点还原场景）：AES-256-GCM + 程序内置密钥。
+ *   safeStorage 在 Windows 下用 DPAPI，密钥落在用户配置目录里，重启被还原后旧密码就解不开了。
+ * - 普通模式：优先 Electron safeStorage（系统钥匙串），不可用时退回 AES。
+ * AES 内置密钥只能挡住「直接打开文件看到明文」，挡不住逆向，别当真正的机密保管。
  */
 class Store {
-  constructor () {
+  constructor ({ portable = false } = {}) {
+    this.portable = portable
     this.file = path.join(app.getPath('userData'), 'settings.json')
     this.state = this.load()
+  }
+
+  cipherMode () {
+    if (this.portable) return CIPHER_AES
+    return safeStorage.isEncryptionAvailable() ? CIPHER_SAFE : CIPHER_AES
   }
 
   load () {
@@ -47,37 +83,50 @@ class Store {
   }
 
   /** 供渲染进程使用的安全视图（不含密码） */
-  getPublicState () {
+  async getPublicState () {
     return {
       siteUrl: this.state.siteUrl,
       autoLogin: this.state.autoLogin,
       activeAccountId: this.state.activeAccountId,
-      accounts: this.state.accounts.map(({ id, username, createdAt, encrypted }) => ({
-        id,
-        username,
-        createdAt,
-        encrypted
+      accounts: await Promise.all(this.state.accounts.map(async (account) => {
+        let usable = true
+        try {
+          usable = Boolean(await this.decryptSecret(account))
+        } catch {
+          // 例如用 safeStorage 加密的旧账号被搬到便携目录，DPAPI 密钥已对不上
+          usable = false
+        }
+        return {
+          id: account.id,
+          username: account.username,
+          createdAt: account.createdAt,
+          encrypted: account.encrypted !== false,
+          cipher: account.cipher || (account.encrypted ? CIPHER_SAFE : 'base64'),
+          usable
+        }
       }))
     }
   }
 
-  /** 密码加密，safeStorage 不可用时退化为明文并标记 */
-  encryptSecret (plain) {
-    if (safeStorage.isEncryptionAvailable()) {
-      return { secret: safeStorage.encryptString(plain).toString('base64'), encrypted: true }
+  async encryptSecret (plain) {
+    if (this.cipherMode() === CIPHER_AES) {
+      return { secret: aesEncrypt(plain), encrypted: true, cipher: CIPHER_AES }
     }
-    return { secret: Buffer.from(plain, 'utf8').toString('base64'), encrypted: false }
+    const encrypted = await safeStorage.encryptStringAsync(plain)
+    return { secret: encrypted.toString('base64'), encrypted: true, cipher: CIPHER_SAFE }
   }
 
-  decryptSecret (account) {
+  async decryptSecret (account) {
     if (!account || !account.secret) return ''
-    if (account.encrypted) {
-      return safeStorage.decryptString(Buffer.from(account.secret, 'base64'))
+    const cipher = account.cipher || (account.encrypted ? CIPHER_SAFE : null)
+    if (cipher === CIPHER_AES) return aesDecrypt(account.secret)
+    if (cipher === CIPHER_SAFE) {
+      return safeStorage.decryptStringAsync(Buffer.from(account.secret, 'base64'))
     }
     return Buffer.from(account.secret, 'base64').toString('utf8')
   }
 
-  updateSettings ({ siteUrl, autoLogin }) {
+  async updateSettings ({ siteUrl, autoLogin }) {
     if (typeof siteUrl === 'string') {
       this.state.siteUrl = siteUrl.trim()
     }
@@ -88,13 +137,14 @@ class Store {
     return this.getPublicState()
   }
 
-  addAccount ({ username, password }) {
-    const { secret, encrypted } = this.encryptSecret(password)
+  async addAccount ({ username, password }) {
+    const { secret, encrypted, cipher } = await this.encryptSecret(password)
     const account = {
       id: crypto.randomUUID(),
       username,
       secret,
       encrypted,
+      cipher,
       createdAt: new Date().toISOString()
     }
     this.state.accounts.push(account)
@@ -105,22 +155,23 @@ class Store {
     return this.getPublicState()
   }
 
-  updateAccount (id, { username, password }) {
+  async updateAccount (id, { username, password }) {
     const account = this.state.accounts.find((item) => item.id === id)
     if (!account) return this.getPublicState()
     if (typeof username === 'string' && username.trim()) {
       account.username = username.trim()
     }
     if (typeof password === 'string' && password) {
-      const { secret, encrypted } = this.encryptSecret(password)
+      const { secret, encrypted, cipher } = await this.encryptSecret(password)
       account.secret = secret
       account.encrypted = encrypted
+      account.cipher = cipher
     }
     this.persist()
     return this.getPublicState()
   }
 
-  removeAccount (id) {
+  async removeAccount (id) {
     this.state.accounts = this.state.accounts.filter((item) => item.id !== id)
     if (this.state.activeAccountId === id) {
       this.state.activeAccountId = this.state.accounts[0]?.id ?? null
@@ -129,7 +180,7 @@ class Store {
     return this.getPublicState()
   }
 
-  setActiveAccount (id) {
+  async setActiveAccount (id) {
     if (this.state.accounts.some((item) => item.id === id)) {
       this.state.activeAccountId = id
     }
@@ -138,11 +189,11 @@ class Store {
   }
 
   /** 取当前生效账号（用户名 + 解密后的密码） */
-  getActiveCredential () {
+  async getActiveCredential () {
     const account = this.state.accounts.find((item) => item.id === this.state.activeAccountId)
     if (!account) return null
     try {
-      return { username: account.username, password: this.decryptSecret(account) }
+      return { username: account.username, password: await this.decryptSecret(account) }
     } catch {
       return null
     }

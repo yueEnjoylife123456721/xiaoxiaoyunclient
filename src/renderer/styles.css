@@ -454,6 +454,11 @@ input:focus-visible {
   font-size: 10.5px;
 }
 
+.account-badge.warn {
+  background: rgba(255, 176, 32, 0.18);
+  color: #ffb020;
+}
+
 .account-ops {
   display: flex;
   gap: 4px;
@@ -479,6 +484,18 @@ input:focus-visible {
 
 .empty-accounts[hidden] {
   display: none;
+}
+
+.storage-path {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-input);
+  color: #a9b6c6;
+  font: 11.5px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  word-break: break-all;
+  user-select: text;
 }
 
 .account-form {

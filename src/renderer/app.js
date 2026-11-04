@@ -27,6 +27,8 @@ const els = {
   btnAddAccount: document.getElementById('btnAddAccount'),
   btnLoginNow: document.getElementById('btnLoginNow'),
   formError: document.getElementById('formError'),
+  storagePath: document.getElementById('storagePath'),
+  storageHint: document.getElementById('storageHint'),
   toast: document.getElementById('toast')
 }
 
@@ -56,6 +58,13 @@ function render (next) {
   }
   els.toggleAutoLogin.checked = Boolean(state.autoLogin)
 
+  const storage = state.storage || {}
+  els.storagePath.textContent = storage.dataDir || '—'
+  els.storageHint.textContent = storage.portable
+    ? '便携模式：配置、账号和登录态都在程序目录的 data 文件夹里，重启（含冰点还原）后依然存在。'
+    : '未启用便携模式：数据写在系统用户目录，如果电脑有冰点还原，重启后账号会丢失。把程序和目录一起放到非系统盘即可自动切换为便携模式。'
+  els.storageHint.classList.toggle('error', !storage.portable)
+
   els.accountList.innerHTML = ''
   const accounts = state.accounts || []
   els.emptyAccounts.hidden = accounts.length > 0
@@ -74,7 +83,13 @@ function render (next) {
       badge.textContent = '当前'
       nameWrap.appendChild(badge)
     }
-    if (account.encrypted === false) {
+    if (account.usable === false) {
+      const badge = document.createElement('span')
+      badge.className = 'account-badge warn'
+      badge.textContent = '需重新输入'
+      badge.title = '这个账号的密码在当前环境解不开（例如换了电脑或换了数据目录），请重新添加'
+      nameWrap.appendChild(badge)
+    } else if (account.encrypted === false) {
       const badge = document.createElement('span')
       badge.className = 'account-badge'
       badge.textContent = '未加密'

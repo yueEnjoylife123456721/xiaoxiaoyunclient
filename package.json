@@ -48,11 +48,24 @@
           "arch": [
             "x64"
           ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.ico"
     },
     "nsis": {
+      "artifactName": "xiaoxiaoyunclient-v${version}-setup.${ext}",
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
@@ -63,6 +76,9 @@
         "zh_CN"
       ],
       "language": "2052"
+    },
+    "portable": {
+      "artifactName": "xiaoxiaoyunclient-v${version}-portable.${ext}"
     },
     "mac": {
       "target": [

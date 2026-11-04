@@ -1,5 +1,6 @@
 'use strict'
 
+const fs = require('node:fs')
 const path = require('node:path')
 const { app, BrowserWindow, WebContentsView, ipcMain, shell, session } = require('electron')
 const Store = require('./store')
@@ -7,8 +8,41 @@ const { buildAutoLoginScript } = require('./autologin')
 
 const CHROME_HEIGHT = 44
 const PARTITION = 'persist:xiaoxiaoyun'
+const DATA_DIR_NAME = 'data'
 
-const store = new Store()
+/**
+ * 便携模式：把数据目录放到程序所在文件夹，而不是 %APPDATA%。
+ * 学校电脑装了冰点还原，%APPDATA% 重启就没了，只有程序自身目录（非系统盘）能留住账号。
+ */
+function resolvePortableBaseDir () {
+  const candidates = []
+  if (process.env.PORTABLE_EXECUTABLE_DIR) candidates.push(process.env.PORTABLE_EXECUTABLE_DIR)
+  candidates.push(app.isPackaged ? path.dirname(app.getPath('exe')) : app.getAppPath())
+
+  for (const dir of candidates) {
+    try {
+      const probe = path.join(dir, `.write-probe-${Date.now()}`)
+      fs.writeFileSync(probe, 'ok')
+      fs.unlinkSync(probe)
+      return dir
+    } catch {
+      // 目录不可写（例如装在 Program Files 或只读介质上），换下一个
+    }
+  }
+  return null
+}
+
+const portableBaseDir = resolvePortableBaseDir()
+const portable = Boolean(portableBaseDir)
+
+if (portable) {
+  const dataDir = path.join(portableBaseDir, DATA_DIR_NAME)
+  fs.mkdirSync(dataDir, { recursive: true })
+  // 必须在 app ready 之前设置，Cookie / 缓存 / 配置才会一起落到便携目录
+  app.setPath('userData', dataDir)
+}
+
+const store = new Store({ portable })
 
 let mainWindow = null
 let siteView = null
@@ -20,13 +54,21 @@ const pageState = {
   url: ''
 }
 
-function publicState () {
-  return { ...store.getPublicState(), page: pageState }
+async function publicState () {
+  return {
+    ...await store.getPublicState(),
+    storage: {
+      portable,
+      dataDir: app.getPath('userData'),
+      settingsFile: store.file
+    },
+    page: pageState
+  }
 }
 
-function pushState () {
+async function pushState () {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('state:update', publicState())
+    mainWindow.webContents.send('state:update', await publicState())
   }
 }
 
@@ -68,7 +110,7 @@ function layout () {
 async function runAutoLogin () {
   const state = store.getState()
   if (!state.autoLogin) return
-  const credential = store.getActiveCredential()
+  const credential = await store.getActiveCredential()
   if (!credential || !credential.username || !credential.password) return
 
   const url = siteView.webContents.getURL()
@@ -259,43 +301,43 @@ app.on('window-all-closed', () => {
 
 ipcMain.handle('state:get', () => publicState())
 
-ipcMain.handle('settings:save', (_event, payload) => {
-  store.updateSettings(payload || {})
+ipcMain.handle('settings:save', async (_event, payload) => {
+  await store.updateSettings(payload || {})
   lastAutoLoginUrl = null
   applySiteUrl()
   pushState()
   return publicState()
 })
 
-ipcMain.handle('account:add', (_event, payload) => {
+ipcMain.handle('account:add', async (_event, payload) => {
   const username = String(payload?.username || '').trim()
   const password = String(payload?.password || '')
   if (!username || !password) {
     throw new Error('账号和密码都不能为空')
   }
   lastAutoLoginUrl = null
-  store.addAccount({ username, password })
+  await store.addAccount({ username, password })
   pushState()
   return publicState()
 })
 
-ipcMain.handle('account:update', (_event, id, payload) => {
+ipcMain.handle('account:update', async (_event, id, payload) => {
   lastAutoLoginUrl = null
-  store.updateAccount(id, payload || {})
+  await store.updateAccount(id, payload || {})
   pushState()
   return publicState()
 })
 
-ipcMain.handle('account:remove', (_event, id) => {
+ipcMain.handle('account:remove', async (_event, id) => {
   lastAutoLoginUrl = null
-  store.removeAccount(id)
+  await store.removeAccount(id)
   pushState()
   return publicState()
 })
 
-ipcMain.handle('account:setActive', (_event, id) => {
+ipcMain.handle('account:setActive', async (_event, id) => {
   lastAutoLoginUrl = null
-  store.setActiveAccount(id)
+  await store.setActiveAccount(id)
   pushState()
   return publicState()
 })
