@@ -5,8 +5,10 @@ const path = require('node:path')
 const crypto = require('node:crypto')
 const { app, safeStorage } = require('electron')
 
+const DEFAULT_SITE_URL = 'https://xiaoxiaoyun.com/'
+
 const DEFAULT_STATE = {
-  siteUrl: '',
+  siteUrl: DEFAULT_SITE_URL,
   autoLogin: true,
   windowBounds: { width: 1180, height: 820 },
   windowMaximized: false,
@@ -64,7 +66,10 @@ class Store {
     try {
       const raw = fs.readFileSync(this.file, 'utf8')
       const parsed = JSON.parse(raw)
-      return { ...DEFAULT_STATE, ...parsed }
+      const state = { ...DEFAULT_STATE, ...parsed }
+      // 校校云就是 xiaoxiaoyun.com：老配置里地址为空时直接补上，不用用户再填
+      if (!state.siteUrl) state.siteUrl = DEFAULT_SITE_URL
+      return state
     } catch {
       return { ...DEFAULT_STATE }
     }
